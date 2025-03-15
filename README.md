@@ -134,13 +134,13 @@
 
 ## 📚 Reference
 
-<br>
 
 - **포즈 데이터 수집**: [Mediapipe 공식 문서](https://developers.google.com/mediapipe)  
 
 - **표정 데이터셋**: [Kaggle FER-2013](https://www.kaggle.com/datasets/msambare/fer2013)  
 
 
+<br>
 
 이 프로젝트는 **비언어적 커뮤니케이션 분석**을 통해 소셜 인터랙션을 개선하는 데 초점을 맞추고 있습니다.  
 
