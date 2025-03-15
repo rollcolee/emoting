@@ -1,4 +1,3 @@
-# emoting
 # Emoting - Rotation Based Speed Dating Service
 
 ## 📌 프로젝트 개요
