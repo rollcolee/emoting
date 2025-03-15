@@ -134,6 +134,7 @@
 
 ## 📚 Reference
 
+<br>
 
 - **포즈 데이터 수집**: [Mediapipe 공식 문서](https://developers.google.com/mediapipe)  
 
