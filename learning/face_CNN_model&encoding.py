@@ -1,4 +1,4 @@
-# 표정에 대한 이미지학습 모델 저장, 라벨 인코딩 정보 저장
+# 표정 : 이미지학습 모델 저장, 라벨 인코딩 정보 저장
 
 import tensorflow as tf
 from tensorflow import keras
