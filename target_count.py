@@ -1,3 +1,5 @@
+# 학습 전 데이터셋 개수 조정
+
 import os
 import shutil
 import random
