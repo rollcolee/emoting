@@ -1,4 +1,4 @@
-# 행동에 대한 좌표학습 모델 저장, 라벨 인코딩 정보 저장
+# 행동 : 좌표학습 모델 저장, 라벨 인코딩 정보 저장
 
 import pandas as pd
 import xgboost as xgb
