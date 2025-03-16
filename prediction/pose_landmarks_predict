@@ -1,0 +1,99 @@
+# 행동 : 좌표 학습모델을 비디오로 테스트
+
+import cv2
+import mediapipe as mp
+import numpy as np
+import xgboost as xgb
+import json
+from sklearn.preprocessing import LabelEncoder
+from sklearn.svm import SVC  # SVM 모델 import
+from sklearn.ensemble import RandomForestClassifier
+
+# MediaPipe Pose 초기화
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose()
+
+# 학습된 모델 불러오기
+model = xgb.XGBClassifier()
+# model = RandomForestClassifier(n_estimators=100, random_state=42) # RandomForest 모델 생성 및 학습
+# model = SVC(kernel='rbf', random_state=42)  # SVM 모델 생성 및 학습
+model.load_model("/content/pose_classification_model.json")
+
+# 라벨 인코딩 정보 로드
+with open("/content/label_encoder.json", "r") as f:
+    label_mapping = json.load(f)
+
+# 라벨 인코더 객체 생성
+label_encoder = LabelEncoder()
+label_encoder.classes_ = np.array(list(label_mapping.values()))  # 라벨 클래스 할당
+
+# 사용할 관절 인덱스 (훈련 데이터에서 사용한 31개 관절)
+selected_indices = [i for i in range(31)]
+
+# 분석할 비디오 파일 경로
+video_path = "/content/5822490-sd_240_426_25fps.mp4"
+cap = cv2.VideoCapture(video_path)
+
+# 비디오 저장 설정
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = cv2.VideoWriter('output_video.mp4', fourcc, int(cap.get(cv2.CAP_PROP_FPS)),
+                        (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+
+# 최소 신뢰도 기준 및 프레임 스킵 설정
+CONFIDENCE_THRESHOLD = 0.5
+FRAME_SKIP = 200
+frame_count = 0
+
+# Colab 전용 imshow 함수
+from google.colab.patches import cv2_imshow
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    frame_count += 1
+    if frame_count % FRAME_SKIP != 0:
+        continue
+
+    # BGR -> RGB 변환
+    # frame = cv2.flip(frame, 0)  # 이미지 뒤집혀있을때 사용
+    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = pose.process(image)
+
+    # 키포인트 추출 및 예측
+    if results.pose_landmarks:
+        landmarks = results.pose_landmarks.landmark
+        keypoints = np.array([[landmarks[i].x, landmarks[i].y, landmarks[i].z] for i in selected_indices]).flatten()
+
+        # 모델 예측
+        y_probs = model.predict_proba([keypoints])[0]
+        sorted_indices = np.argsort(y_probs)[::-1]
+        print(sorted_indices)
+        top_label_1 = label_encoder.inverse_transform([sorted_indices[0]])[0]  # 라벨 복원
+        top_conf_1 = y_probs[sorted_indices[0]]
+        print(top_label_1,top_conf_1)
+
+        top_label_2 = label_encoder.inverse_transform([sorted_indices[1]])[0]  # 라벨 복원
+        top_conf_2 = y_probs[sorted_indices[1]]
+        print(top_label_2, top_conf_2)
+        # 최소신뢰도 이상 확실한 경우에만 출력
+        if top_conf_1 >= CONFIDENCE_THRESHOLD:
+            predicted_text = f"{top_label_1} ({top_conf_1:.2f})"
+        # 두 번째 자세도 최소신뢰도 이상 확실하면 함께 출력
+            if top_conf_2 >= CONFIDENCE_THRESHOLD:
+                predicted_text += f"{top_label_2} ({top_conf_2:.2f})"
+        else:
+            predicted_text = "untracked"
+
+        # 프레임에 결과 표시
+        cv2.putText(frame, predicted_text, (50, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+
+    # Colab에서 프레임 출력
+    cv2_imshow(frame)
+    out.write(frame)
+
+cap.release()
+out.release()
+# cv2.destroyAllWindows()
