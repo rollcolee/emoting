@@ -1,4 +1,5 @@
 # 행동 : 좌표 학습모델을 비디오로 테스트
+# 이미지(비디오) 뒤집혀있을때 cv2.flip 사용
 
 import cv2
 import mediapipe as mp
@@ -40,8 +41,8 @@ out = cv2.VideoWriter('output_video.mp4', fourcc, int(cap.get(cv2.CAP_PROP_FPS))
                         (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
 
 # 최소 신뢰도 기준 및 프레임 스킵 설정
-CONFIDENCE_THRESHOLD = 0.5
-FRAME_SKIP = 200
+CONFIDENCE_THRESHOLD = 0.6
+FRAME_SKIP = 40
 frame_count = 0
 
 # Colab 전용 imshow 함수
@@ -57,7 +58,7 @@ while cap.isOpened():
         continue
 
     # BGR -> RGB 변환
-    # frame = cv2.flip(frame, 0)  # 이미지 뒤집혀있을때 사용
+    frame = cv2.flip(frame, 0)  # 이미지(비디오) 뒤집혀있을때 사용
     image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = pose.process(image)
 
