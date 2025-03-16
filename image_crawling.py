@@ -1,3 +1,5 @@
+# 데이터셋 구축을 위한 이미지크롤링
+
 from selenium import webdriver
 from time import sleep
 import random
