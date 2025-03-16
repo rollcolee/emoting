@@ -1,0 +1,158 @@
+# 표정 : 좌표 학습모델을 비디오로 테스트
+# 예측 레이블이 변경될 때 횟수 업데이트
+
+import cv2
+import mediapipe as mp
+import numpy as np
+import xgboost as xgb
+import json
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from google.colab.patches import cv2_imshow
+
+# MediaPipe Face Mesh 설정
+mp_face_mesh = mp.solutions.face_mesh
+face_mesh = mp_face_mesh.FaceMesh(static_image_mode=False, max_num_faces=1, min_detection_confidence=0.7)
+
+# 학습된 모델 불러오기
+model = xgb.XGBClassifier()
+try:
+    model.load_model("/content/face_expression_model.json")
+except Exception as e:
+    print(f"모델 로드 오류: {e}")
+    exit()
+
+# 라벨 인코딩 정보 로드
+try:
+    with open("/content/face_label_encoder.json", "r") as f:
+        label_mapping = json.load(f)
+except Exception as e:
+    print(f"라벨 인코딩 로드 오류: {e}")
+    exit()
+
+# LabelEncoder 복원
+label_encoder = LabelEncoder()
+label_encoder.classes_ = np.array(list(label_mapping.values()))
+
+# 비디오 파일 설정
+video_path = "/content/5822490-sd_240_426_25fps.mp4"
+cap = cv2.VideoCapture(video_path)
+
+# 설정값
+CONFIDENCE_THRESHOLD = 0.6
+FRAME_SKIP = 100
+frame_count = 0
+predicted_label_count = {} # 예측 레이블별 횟수 저장 딕셔너리
+previous_label = None
+
+# 사용할 랜드마크 인덱스 및 이름 매칭
+landmark_names = {
+    'Left Eye Top': 386,  # 근처 랜드마크 번호 (정확히 "Top"에 해당하는 대표적인 번호)
+    'Left Eyebrow Inner': 105,
+    'Left Eyebrow Outer': 336,
+    'Left Eye Bottom': 374,  # 근처 랜드마크 번호
+    'Left Eye Inner Corner': 133,
+    'Left Cheek': 234,     # 광대뼈 부근
+    'Upper Lip': 10,
+    'Right Eye Outer Corner': 263,
+    'Right Eye Top': 159,  # 근처 랜드마크 번호
+    'Right Eyebrow Inner': 334,
+    'Right Eye Bottom': 145,  # 근처 랜드마크 번호
+    'Chin': 152,
+    'Left Eyebrow Bottom': 226, # 눈썹 하단
+    'Left Mouth Corner': 61,
+    'Nose Tip': 4,
+    'Right Lip Corner': 291,
+    'Lower Lip': 17,
+    'Right Cheek': 454,     # 광대뼈 부근
+    'Right Eyebrow Outer': 107,
+    'Left Lip Corner': 291, # Left Mouth Corner 와 같습니다.
+    'Right Eye Inner Corner': 362,
+    'Right Mouth Corner': 61, # Right Lip Corner 와 같습니다.
+    'Right Eyebrow Bottom': 446 # 눈썹 하단
+}
+
+selected_indices = list(landmark_names.keys())
+landmark_names_list = list(landmark_names.values())
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    frame_count += 1
+    if frame_count % FRAME_SKIP != 0:
+        continue
+
+    # BGR -> RGB 변환
+    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = face_mesh.process(image)
+
+    # 얼굴 랜드마크가 감지된 경우
+    if results.multi_face_landmarks:
+        for face_landmarks in results.multi_face_landmarks:
+            try:
+                # 키포인트 추출
+                keypoints = np.array([[face_landmarks.landmark[i].x,
+                                        face_landmarks.landmark[i].y,
+                                        face_landmarks.landmark[i].z] for i in landmark_names_list]).flatten()
+
+                # 모델 예측
+                y_probs = model.predict_proba([keypoints])[0]
+                sorted_indices = np.argsort(y_probs)[::-1]
+
+                # 예측 결과 출력
+                top_label_1 = label_encoder.inverse_transform([sorted_indices[0]])[0]
+                top_conf_1 = y_probs[sorted_indices[0]]
+
+                top_label_2 = label_encoder.inverse_transform([sorted_indices[1]])[0]
+                top_conf_2 = y_probs[sorted_indices[1]]
+
+                # 최소신뢰도 이상 확실한 경우에만 출력
+                if top_conf_1 >= CONFIDENCE_THRESHOLD:
+                    predicted_text = f"{top_label_1} ({top_conf_1:.2f})"
+                # 두 번째 표정도 최소신뢰도 이상 확실하면 함께 출력
+                    if top_conf_2 >= CONFIDENCE_THRESHOLD:
+                        predicted_text += f" {top_label_2} ({top_conf_2:.2f})"
+                else:
+                    predicted_text = "untracked"
+
+                # 레이블 추출
+                label = predicted_text.split(" (")[0]
+
+                # 예측 레이블이 변경되었는지 확인하고 횟수 업데이트
+                if label != previous_label:
+                    if label in predicted_label_count:
+                        predicted_label_count[label] += 1
+                    else:
+                        predicted_label_count[label] = 1
+                    previous_label = label
+
+                # 프레임에 결과 표시
+                cv2.putText(frame, predicted_text, (50, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+
+                # 랜드마크 그리기
+                for i, idx in enumerate(landmark_names_list):
+                    x_pixel = int(face_landmarks.landmark[idx].x * frame.shape[1])
+                    y_pixel = int(face_landmarks.landmark[idx].y * frame.shape[0])
+                    cv2.circle(frame, (x_pixel, y_pixel), 3, (150, 255, 150), -1)
+                    cv2.putText(frame, selected_indices[i], (x_pixel + 3, y_pixel - 3),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 255, 150), 1)
+
+            except Exception as e:
+                print(f"예측 오류: {e}")
+
+    # Colab에서 프레임 출력
+    cv2_imshow(frame)
+
+cap.release()
+
+# 최종 결과 출력 (누적 횟수)
+print("예측 텍스트별 최종 누적 횟수:")
+
+# DataFrame 생성
+df = pd.DataFrame(list(predicted_label_count.items()), columns=['label', 'count'])
+df = df.sort_values(by='count', ascending=False).reset_index(drop=True)
+
+print(df)
