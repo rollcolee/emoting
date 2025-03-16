@@ -3,9 +3,11 @@
 import cv2
 import mediapipe as mp
 import pandas as pd
-import zipfile
 import os
 from google.colab import files
+
+train_folder = '/content/drive/MyDrive/extracted_images/3000/train'
+test_folder = '/content/drive/MyDrive/extracted_images/3000/test'
 
 # Mediapipe Pose 초기화
 mp_pose = mp.solutions.pose
@@ -23,9 +25,6 @@ landmark_names = [
     "left_index", "right_index", "left_thumb", "right_thumb", "left_hip", "right_hip",
     "left_knee", "right_knee", "left_ankle", "right_ankle", "left_heel", "right_heel"
 ]
-
-train_folder = '/content/drive/MyDrive/extracted_images/3000/train'
-test_folder = '/content/drive/MyDrive/extracted_images/3000/test'
 
 # 랜드마크 데이터를 저장할 리스트
 landmarks_data = []
